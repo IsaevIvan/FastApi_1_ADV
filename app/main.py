@@ -3,8 +3,6 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from datetime import datetime
-from enum import Enum
-from contextlib import asynccontextmanager
 
 from app.database import get_db, Advertisement, create_tables
 
@@ -29,6 +27,13 @@ class AdvertisementResponse(BaseModel):
         from_attributes = True
 
 
+class AdvertisementUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = Field(None, min_length=1, max_length=500)
+    price: Optional[float] = Field(None, gt=0)
+    author: Optional[str] = Field(None, min_length=1, max_length=50)
+
+
 # Создаем приложение
 app = FastAPI(title="Advertisement Service", version="1.0.0")
 
@@ -51,30 +56,36 @@ def create_advertisement(ad: AdvertisementCreate, db: Session = Depends(get_db))
 
 @app.get("/advertisement/{ad_id}", response_model=AdvertisementResponse)
 def get_advertisement(ad_id: int, db: Session = Depends(get_db)):
-    if ad := db.query(Advertisement).filter(Advertisement.id == ad_id).first():
-        return ad
-    raise HTTPException(status_code=404, detail="Advertisement not found")
+    ad = db.query(Advertisement).filter(Advertisement.id == ad_id).first()
+    if not ad:
+        raise HTTPException(status_code=404, detail="Advertisement not found")
+    return ad
 
 
 @app.patch("/advertisement/{ad_id}", response_model=AdvertisementResponse)
-def update_advertisement(ad_id: int, ad_data: dict, db: Session = Depends(get_db)):
-    if ad := db.query(Advertisement).filter(Advertisement.id == ad_id).first():
-        for key, value in ad_data.items():
-            if hasattr(ad, key) and value is not None:
-                setattr(ad, key, value)
-        db.commit()
-        db.refresh(ad)
-        return ad
-    raise HTTPException(status_code=404, detail="Advertisement not found")
+def update_advertisement(ad_id: int, ad_data: AdvertisementUpdate, db: Session = Depends(get_db)):
+    ad = db.query(Advertisement).filter(Advertisement.id == ad_id).first()
+    if not ad:
+        raise HTTPException(status_code=404, detail="Advertisement not found")
+
+    update_data = ad_data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(ad, key, value)
+
+    db.commit()
+    db.refresh(ad)
+    return ad
 
 
 @app.delete("/advertisement/{ad_id}", status_code=204)
 def delete_advertisement(ad_id: int, db: Session = Depends(get_db)):
-    if ad := db.query(Advertisement).filter(Advertisement.id == ad_id).first():
-        db.delete(ad)
-        db.commit()
-        return
-    raise HTTPException(status_code=404, detail="Advertisement not found")
+    ad = db.query(Advertisement).filter(Advertisement.id == ad_id).first()
+    if not ad:
+        raise HTTPException(status_code=404, detail="Advertisement not found")
+
+    db.delete(ad)
+    db.commit()
+    return
 
 
 @app.get("/advertisement", response_model=List[AdvertisementResponse])

@@ -1,7 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
 from datetime import datetime
-from contextlib import contextmanager
 
 # База данных
 SQLALCHEMY_DATABASE_URL = "sqlite:///./advertisements.db"
@@ -22,16 +21,15 @@ class Advertisement(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# Упрощенный менеджер сессий
-@contextmanager
+# Создание таблиц
+def create_tables():
+    Base.metadata.create_all(bind=engine)
+
+
+# Функция для получения сессии БД
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
-
-# Создание таблиц
-def create_tables():
-    Base.metadata.create_all(bind=engine)
